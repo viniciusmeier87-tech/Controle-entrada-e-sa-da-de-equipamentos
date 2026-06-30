@@ -7,159 +7,238 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="app">
-    <header class="header">
-      <div class="header-left">
-        <div class="logo">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-            <circle cx="14" cy="14" r="13" stroke="#2563eb" stroke-width="2"/>
-            <path d="M14 6c0 0-6 5-6 10a6 6 0 0 0 12 0c0-5-6-10-6-10z" fill="#2563eb" opacity="0.2"/>
-            <path d="M14 8c0 0-4.5 4-4.5 8a4.5 4.5 0 0 0 9 0c0-4-4.5-8-4.5-8z" fill="#2563eb"/>
-          </svg>
-        </div>
-        <div>
-          <h1>Controle de Equipamentos</h1>
-          <p class="subtitle">Sistema de entrada e saída</p>
-        </div>
+<div class="app">
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <circle cx="14" cy="14" r="13" stroke="#2563eb" stroke-width="2"/>
+          <path d="M14 6c0 0-6 5-6 10a6 6 0 0 0 12 0c0-5-6-10-6-10z" fill="#2563eb" opacity="0.2"/>
+          <path d="M14 8c0 0-4.5 4-4.5 8a4.5 4.5 0 0 0 9 0c0-4-4.5-8-4.5-8z" fill="#2563eb"/>
+        </svg>
       </div>
-      <nav class="tabs" role="tablist">
-        <button class="tab active" role="tab" aria-selected="true" onclick="setTab('dashboard')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-          Painel
-        </button>
-        <button class="tab" role="tab" aria-selected="false" onclick="setTab('saida')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          Saída
-        </button>
-        <button class="tab" role="tab" aria-selected="false" onclick="setTab('devolucao')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-          Devolução
-        </button>
-        <button class="tab" role="tab" aria-selected="false" onclick="setTab('historico')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
-          Histórico
-        </button>
-      </nav>
-    </header>
-
-    <!-- PAINEL -->
-    <section id="sec-dashboard" class="section active" role="tabpanel">
-      <div class="stats" id="stats-cards"></div>
-      <div class="card">
-        <div class="card-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Equipamentos em uso
-        </div>
-        <div id="em-uso-list"></div>
+      <div>
+        <h1>Controle de Equipamentos</h1>
+        <p class="subtitle">Sistema de entrada e saída</p>
       </div>
-    </section>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" role="tab" onclick="setTab('dashboard')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Painel
+      </button>
+      <button class="tab" role="tab" onclick="setTab('saida')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Saída
+      </button>
+      <button class="tab" role="tab" onclick="setTab('devolucao')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Devolução
+      </button>
+      <button class="tab" role="tab" onclick="setTab('historico')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+        Histórico
+      </button>
+      <button class="tab" role="tab" onclick="setTab('cadastro')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        Cadastros
+      </button>
+    </nav>
+  </header>
 
-    <!-- SAÍDA -->
-    <section id="sec-saida" class="section" role="tabpanel">
-      <div class="card">
-        <div class="card-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          Registrar saída de equipamento
-        </div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="s-data">Data de entrega</label>
-            <input type="date" id="s-data" />
-          </div>
-          <div class="form-group">
-            <label for="s-equip">Equipamento</label>
-            <select id="s-equip"></select>
-          </div>
-          <div class="form-group">
-            <label for="s-tecnico">Técnico responsável</label>
-            <select id="s-tecnico"></select>
-          </div>
-          <div class="form-group">
-            <label for="s-issak">Responsável Issak</label>
-            <select id="s-issak">
-              <option>Vinicius</option>
-              <option>Issak</option>
-            </select>
-          </div>
-          <div class="form-group full">
-            <label for="s-projeto">Projeto / local</label>
-            <input type="text" id="s-projeto" placeholder="Nome do projeto ou local de aplicação" />
-          </div>
-          <div class="form-group full">
-            <label for="s-ensaios">Ensaios replicados realizados</label>
-            <input type="text" id="s-ensaios" placeholder="Descreva os ensaios (opcional)" />
-          </div>
-        </div>
-        <div class="btn-row">
-          <button class="btn primary" onclick="registrarSaida()">Registrar saída</button>
-          <button class="btn secondary" onclick="limparFormSaida()">Limpar</button>
-        </div>
+  <!-- PAINEL -->
+  <section id="sec-dashboard" class="section active" role="tabpanel">
+    <div class="stats" id="stats-cards"></div>
+    <div class="card">
+      <div class="card-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Equipamentos em uso
       </div>
-    </section>
+      <div id="em-uso-list"></div>
+    </div>
+  </section>
 
-    <!-- DEVOLUÇÃO -->
-    <section id="sec-devolucao" class="section" role="tabpanel">
-      <div class="card">
-        <div class="card-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-          Equipamentos em uso — selecione para devolver
-        </div>
-        <div class="search-bar">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input type="text" id="dev-search" placeholder="Buscar por equipamento, técnico ou projeto..." oninput="filtrarEmUso()" aria-label="Buscar equipamentos em uso" />
-        </div>
-        <div id="dev-list"></div>
+  <!-- SAÍDA -->
+  <section id="sec-saida" class="section" role="tabpanel">
+    <div class="card">
+      <div class="card-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Registrar saída de equipamento
       </div>
-    </section>
-
-    <!-- HISTÓRICO -->
-    <section id="sec-historico" class="section" role="tabpanel">
-      <div class="card" style="margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none;">
-        <div class="filter-row">
-          <div class="search-bar" style="flex: 1; min-width: 200px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input type="text" id="hist-search" placeholder="Buscar por equipamento, técnico ou projeto..." oninput="renderHistorico()" aria-label="Buscar no histórico" />
-          </div>
-          <select id="filt-status" onchange="renderHistorico()" aria-label="Filtrar por status">
-            <option value="">Todos os status</option>
-            <option value="Em uso">Em uso</option>
-            <option value="Devolvido">Devolvido</option>
-            <option value="Em atraso">Em atraso</option>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="s-data">Data de entrega <span class="req">*</span></label>
+          <input type="date" id="s-data" />
+        </div>
+        <div class="form-group">
+          <label for="s-equip">Equipamento <span class="req">*</span></label>
+          <select id="s-equip"></select>
+        </div>
+        <div class="form-group">
+          <label for="s-tecnico">Técnico responsável <span class="req">*</span></label>
+          <select id="s-tecnico"></select>
+        </div>
+        <div class="form-group">
+          <label for="s-issak">Responsável Issak <span class="req">*</span></label>
+          <select id="s-issak">
+            <option>Vinicius</option>
+            <option>Issak</option>
           </select>
-          <select id="filt-equip" onchange="renderHistorico()" aria-label="Filtrar por equipamento">
-            <option value="">Todos equipamentos</option>
-          </select>
-          <select id="filt-tecnico" onchange="renderHistorico()" aria-label="Filtrar por técnico">
-            <option value="">Todos técnicos</option>
-          </select>
-          <button class="btn secondary small" onclick="exportarCSV()">Exportar CSV</button>
+        </div>
+        <div class="form-group full">
+          <label for="s-projeto">Projeto / local <span class="req">*</span></label>
+          <input type="text" id="s-projeto" placeholder="Nome do projeto ou local de aplicação" />
         </div>
       </div>
-      <div class="card table-card">
-        <div class="table-wrap">
-          <table class="records-table" aria-label="Histórico de equipamentos">
-            <thead>
-              <tr>
-                <th>Equipamento</th>
-                <th>Projeto</th>
-                <th>Técnico</th>
-                <th>Responsável</th>
-                <th>Saída</th>
-                <th>Devolução</th>
-                <th>Dias</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="hist-tbody"></tbody>
-          </table>
-        </div>
+      <div class="btn-row">
+        <button class="btn primary" onclick="registrarSaida()">Registrar saída</button>
+        <button class="btn secondary" onclick="limparFormSaida()">Limpar</button>
       </div>
-    </section>
+    </div>
+  </section>
+
+  <!-- DEVOLUÇÃO -->
+  <section id="sec-devolucao" class="section" role="tabpanel">
+    <div class="card">
+      <div class="card-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Equipamentos em uso — selecione para devolver
+      </div>
+      <div class="search-bar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="dev-search" placeholder="Buscar por equipamento, técnico ou projeto..." oninput="filtrarEmUso()" aria-label="Buscar equipamentos em uso" />
+      </div>
+      <div id="dev-list"></div>
+    </div>
+  </section>
+
+  <!-- HISTÓRICO -->
+  <section id="sec-historico" class="section" role="tabpanel">
+    <div class="card" style="margin-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom:none;">
+      <div class="filter-row">
+        <div class="search-bar" style="flex:1;min-width:200px;margin-bottom:0;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="hist-search" placeholder="Buscar..." oninput="renderHistorico()" aria-label="Buscar no histórico" />
+        </div>
+        <select id="filt-status" onchange="renderHistorico()" aria-label="Filtrar por status">
+          <option value="">Todos os status</option>
+          <option value="Em uso">Em uso</option>
+          <option value="Devolvido">Devolvido</option>
+          <option value="Em atraso">Em atraso</option>
+        </select>
+        <select id="filt-equip" onchange="renderHistorico()" aria-label="Filtrar por equipamento">
+          <option value="">Todos equipamentos</option>
+        </select>
+        <select id="filt-tecnico" onchange="renderHistorico()" aria-label="Filtrar por técnico">
+          <option value="">Todos técnicos</option>
+        </select>
+        <button class="btn secondary small" onclick="exportarCSV()">Exportar CSV</button>
+      </div>
+    </div>
+    <div class="card table-card">
+      <div class="table-wrap">
+        <table class="records-table" aria-label="Histórico de equipamentos">
+          <thead>
+            <tr>
+              <th>Equipamento</th>
+              <th>Projeto</th>
+              <th>Técnico</th>
+              <th>Responsável</th>
+              <th>Saída</th>
+              <th>Devolução</th>
+              <th>Dias</th>
+              <th>Ensaios realizados</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="hist-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- CADASTROS -->
+  <section id="sec-cadastro" class="section" role="tabpanel">
+    <div class="cadastro-grid">
+
+      <!-- Equipamentos -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2z"/><path d="M7 7h.01"/></svg>
+          Equipamentos
+        </div>
+        <div class="cad-add-row">
+          <input type="text" id="equip-input" placeholder="Código do equipamento (ex: MP-023)" style="flex:1;" />
+          <button class="btn primary small" onclick="addEquipamento()">Adicionar</button>
+        </div>
+        <div id="equip-list" class="cad-list"></div>
+      </div>
+
+      <!-- Funcionários -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Funcionários / Técnicos
+        </div>
+        <div class="cad-add-row">
+          <input type="text" id="func-input" placeholder="Nome do técnico" style="flex:1;" />
+          <button class="btn primary small" onclick="addFuncionario()">Adicionar</button>
+        </div>
+        <div id="func-list" class="cad-list"></div>
+      </div>
+
+    </div>
+  </section>
+</div>
+
+<!-- MODAL DEVOLUÇÃO -->
+<div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-header">
+      <h2 id="modal-title">Registrar devolução</h2>
+      <button class="modal-close" onclick="fecharModal()" aria-label="Fechar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-equip" id="modal-equip-info"></div>
+      <div class="form-group" style="margin-top:1rem;">
+        <label for="dev-ensaios">Ensaios replicados realizados <span class="req">*</span></label>
+        <textarea id="dev-ensaios" rows="4" placeholder="Descreva os ensaios replicados realizados durante o uso do equipamento..." style="width:100%;padding:10px;border:1px solid var(--gray-300);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;resize:vertical;background:var(--gray-50);color:var(--gray-800);outline:none;"></textarea>
+        <span class="field-hint">Campo obrigatório para confirmar a devolução.</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn secondary" onclick="fecharModal()">Cancelar</button>
+      <button class="btn primary" onclick="confirmarDevolucao()">Confirmar devolução</button>
+    </div>
   </div>
+</div>
 
-  <div class="toast" id="toast" role="alert" aria-live="polite"></div>
+<!-- MODAL EDIÇÃO GENÉRICO -->
+<div id="edit-overlay" class="modal-overlay" onclick="closeEditModal(event)">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+    <div class="modal-header">
+      <h2 id="edit-title">Editar</h2>
+      <button class="modal-close" onclick="fecharEditModal()" aria-label="Fechar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label id="edit-label">Valor</label>
+        <input type="text" id="edit-input" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn secondary" onclick="fecharEditModal()">Cancelar</button>
+      <button class="btn primary" onclick="confirmarEdicao()">Salvar alteração</button>
+    </div>
+  </div>
+</div>
 
-  <script src="app.js"></script>
+<div class="toast" id="toast" role="alert" aria-live="polite"></div>
+<script src="app.js"></script>
 </body>
 </html>
