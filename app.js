@@ -31,10 +31,41 @@ async function sbDelete(table, query) {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let records      = [];
-let equipamentos = [];
+let equipamentos = []; // array de objetos { codigo, validade_calibracao }
 let tecnicos     = [];
 let modalRecordId = null;
 let editContext   = null;
+
+// ── Calibração helpers ────────────────────────────────────────────────────────
+function diasParaVencer(validade) {
+  if (!validade) return null;
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const val  = new Date(validade + 'T00:00:00');
+  return Math.round((val - hoje) / 86400000);
+}
+
+function statusCalibracao(validade) {
+  const dias = diasParaVencer(validade);
+  if (dias === null) return null;
+  if (dias < 0)  return 'vencido';
+  if (dias <= 15) return 'alerta';
+  return 'ok';
+}
+
+function calibracaoLabel(validade) {
+  const dias = diasParaVencer(validade);
+  if (dias === null) return null;
+  if (dias < 0)  return `Vencida há ${Math.abs(dias)} dia${Math.abs(dias) !== 1 ? 's' : ''}`;
+  if (dias === 0) return 'Vence hoje!';
+  if (dias <= 15) return `Vence em ${dias} dia${dias !== 1 ? 's' : ''}`;
+  return `Válida até ${formatDate(validade)}`;
+}
+
+function equipBloqueado(codigo) {
+  const eq = equipamentos.find(e => e.codigo === codigo);
+  if (!eq || !eq.validade_calibracao) return false;
+  return diasParaVencer(eq.validade_calibracao) < 0;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function today() { return new Date().toISOString().split('T')[0]; }
@@ -68,11 +99,21 @@ function showToast(msg, isError = false) {
   t.textContent = msg;
   t.className = 'toast show' + (isError ? ' error' : '');
   clearTimeout(t._timer);
-  t._timer = setTimeout(() => { t.className = 'toast'; }, 3200);
+  t._timer = setTimeout(() => { t.className = 'toast'; }, 3800);
 }
 
 function setLoading(on) {
   document.getElementById('loading-bar').style.display = on ? 'block' : 'none';
+}
+
+function populateSelectEquip(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const sorted = equipamentos.slice().sort((a,b) => a.codigo.localeCompare(b.codigo));
+  el.innerHTML = sorted.map(e => {
+    const bloq = equipBloqueado(e.codigo);
+    return `<option value="${e.codigo}" ${bloq ? 'disabled' : ''}>${e.codigo}${bloq ? ' 🔒 calibração vencida' : ''}</option>`;
+  }).join('');
 }
 
 function populateSelect(id, opts) {
@@ -82,10 +123,8 @@ function populateSelect(id, opts) {
 }
 
 function refreshFormSelects() {
-  const se = equipamentos.slice().sort();
-  const st = tecnicos.slice().sort();
-  populateSelect('s-equip', se);
-  populateSelect('s-tecnico', st);
+  populateSelectEquip('s-equip');
+  populateSelect('s-tecnico', tecnicos.slice().sort());
   refreshHistoricoFilters();
 }
 
@@ -95,7 +134,8 @@ function refreshHistoricoFilters() {
   if (!fe || !ft) return;
   const curE = fe.value, curT = ft.value;
   fe.innerHTML = '<option value="">Todos equipamentos</option>' +
-    equipamentos.slice().sort().map(e => `<option value="${e}">${e}</option>`).join('');
+    equipamentos.slice().sort((a,b) => a.codigo.localeCompare(b.codigo))
+      .map(e => `<option value="${e.codigo}">${e.codigo}</option>`).join('');
   ft.innerHTML = '<option value="">Todos técnicos</option>' +
     tecnicos.slice().sort().map(t => `<option value="${t}">${t}</option>`).join('');
   fe.value = curE; ft.value = curT;
@@ -127,10 +167,11 @@ async function loadAll() {
       sbGet('tecnicos', 'order=nome.asc')
     ]);
     records      = recs;
-    equipamentos = equips.map(e => e.codigo);
+    equipamentos = equips.map(e => ({ codigo: e.codigo, validade_calibracao: e.validade_calibracao || null }));
     tecnicos     = tecns.map(t => t.nome);
     refreshFormSelects();
     renderDashboard();
+    verificarNotificacoes();
   } catch(e) {
     showToast('Erro ao carregar dados. Verifique a conexão.', true);
     console.error(e);
@@ -138,19 +179,82 @@ async function loadAll() {
   setLoading(false);
 }
 
+// ── Notificações de calibração ─────────────────────────────────────────────────
+function verificarNotificacoes() {
+  const alertas = equipamentos.filter(e => {
+    const st = statusCalibracao(e.validade_calibracao);
+    return st === 'alerta' || st === 'vencido';
+  });
+  if (!alertas.length) return;
+
+  const vencidos = alertas.filter(e => statusCalibracao(e.validade_calibracao) === 'vencido');
+  const proximos = alertas.filter(e => statusCalibracao(e.validade_calibracao) === 'alerta');
+
+  let msgs = [];
+  if (vencidos.length) msgs.push(`${vencidos.length} equipamento(s) com calibração VENCIDA`);
+  if (proximos.length) msgs.push(`${proximos.length} equipamento(s) vencem em até 15 dias`);
+
+  // Notificação do sistema (se permitido)
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('⚠️ Calibração de Equipamentos', {
+      body: msgs.join('\n'),
+      icon: 'icon-192.png'
+    });
+  }
+}
+
+async function pedirPermissaoNotificacao() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+}
+
 // ── Dashboard ──────────────────────────────────────────────────────────────────
 function renderDashboard() {
-  const emUso     = records.filter(r => !r.data_retorno);
+  const emUso      = records.filter(r => !r.data_retorno);
   const devolvidos = records.filter(r => r.data_retorno);
-  const emAtraso  = emUso.filter(r => diasEmUso(r.data_saida) > 10);
+  const emAtraso   = emUso.filter(r => diasEmUso(r.data_saida) > 10);
+  const calibVencida = equipamentos.filter(e => statusCalibracao(e.validade_calibracao) === 'vencido');
+  const calibAlerta  = equipamentos.filter(e => statusCalibracao(e.validade_calibracao) === 'alerta');
 
   document.getElementById('stats-cards').innerHTML = `
     <div class="stat"><div class="stat-label">Total de registros</div><div class="stat-value">${records.length}</div></div>
     <div class="stat"><div class="stat-label">Em uso agora</div><div class="stat-value amber">${emUso.length}</div></div>
     <div class="stat"><div class="stat-label">Devolvidos</div><div class="stat-value green">${devolvidos.length}</div></div>
-    <div class="stat"><div class="stat-label">Em atraso (+10 dias)</div><div class="stat-value ${emAtraso.length > 0 ? 'red' : ''}">${emAtraso.length}</div></div>
+    <div class="stat"><div class="stat-label">Em atraso (+10d)</div><div class="stat-value ${emAtraso.length > 0 ? 'red' : ''}">${emAtraso.length}</div></div>
+    <div class="stat"><div class="stat-label">Calibração vencida</div><div class="stat-value ${calibVencida.length > 0 ? 'red' : ''}">${calibVencida.length}</div></div>
+    <div class="stat"><div class="stat-label">Calibração expirando</div><div class="stat-value ${calibAlerta.length > 0 ? 'amber' : ''}">${calibAlerta.length}</div></div>
   `;
 
+  // Alertas de calibração
+  const alertaEl = document.getElementById('alerta-calibracao');
+  const alertasList = [...equipamentos]
+    .filter(e => statusCalibracao(e.validade_calibracao) === 'vencido' || statusCalibracao(e.validade_calibracao) === 'alerta')
+    .sort((a,b) => {
+      const da = diasParaVencer(a.validade_calibracao);
+      const db = diasParaVencer(b.validade_calibracao);
+      return da - db;
+    });
+
+  if (alertasList.length) {
+    alertaEl.style.display = 'block';
+    document.getElementById('alerta-list').innerHTML = alertasList.map(e => {
+      const st = statusCalibracao(e.validade_calibracao);
+      const label = calibracaoLabel(e.validade_calibracao);
+      return `<div class="alerta-item ${st}">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="chip">${e.codigo}</span>
+          <span style="font-size:13px;">${label}</span>
+        </div>
+        <span class="badge ${st === 'vencido' ? 'atraso' : 'em-uso'}">${st === 'vencido' ? '🔒 Bloqueado' : '⚠️ Atenção'}</span>
+      </div>`;
+    }).join('');
+  } else {
+    alertaEl.style.display = 'none';
+  }
+
+  // Em uso
   const list = document.getElementById('em-uso-list');
   if (!emUso.length) {
     list.innerHTML = '<div class="empty">Nenhum equipamento em uso no momento.</div>';
@@ -182,16 +286,29 @@ async function registrarSaida() {
   const issak   = document.getElementById('s-issak').value;
   const projeto = document.getElementById('s-projeto').value.trim();
 
-  ['s-data','s-equip','s-tecnico','s-projeto'].forEach(id =>
-    document.getElementById(id).classList.remove('error-field'));
+  ['s-data','s-projeto'].forEach(id => document.getElementById(id).classList.remove('error-field'));
 
   let erros = [];
   if (!data)    { erros.push('Data de entrega'); document.getElementById('s-data').classList.add('error-field'); }
   if (!projeto) { erros.push('Projeto / local'); document.getElementById('s-projeto').classList.add('error-field'); }
   if (erros.length) { showToast('Preencha os campos obrigatórios: ' + erros.join(', ') + '.', true); return; }
 
+  // Verificar bloqueio de calibração
+  if (equipBloqueado(equip)) {
+    const eq = equipamentos.find(e => e.codigo === equip);
+    showToast(`🔒 ${equip} está bloqueado: calibração vencida em ${formatDate(eq.validade_calibracao)}. Renove a calibração antes de liberar.`, true);
+    return;
+  }
+
   const emUso = records.find(r => r.equipamento === equip && !r.data_retorno);
   if (emUso) { showToast(`${equip} já está em uso pelo técnico ${emUso.tecnico}.`, true); return; }
+
+  // Avisar se calibração prestes a vencer
+  const eq = equipamentos.find(e => e.codigo === equip);
+  if (eq && statusCalibracao(eq.validade_calibracao) === 'alerta') {
+    const ok = confirm(`⚠️ Atenção: ${equip} tem calibração expirando em breve (${calibracaoLabel(eq.validade_calibracao)}).\n\nDeseja registrar a saída mesmo assim?`);
+    if (!ok) return;
+  }
 
   setLoading(true);
   try {
@@ -211,8 +328,7 @@ async function registrarSaida() {
 function limparFormSaida() {
   document.getElementById('s-data').value = today();
   document.getElementById('s-projeto').value = '';
-  ['s-data','s-equip','s-tecnico','s-projeto'].forEach(id =>
-    document.getElementById(id).classList.remove('error-field'));
+  ['s-data','s-projeto'].forEach(id => document.getElementById(id).classList.remove('error-field'));
 }
 
 // ── Devolução ──────────────────────────────────────────────────────────────────
@@ -344,18 +460,31 @@ function renderCadastros() { renderEquipList(); renderFuncList(); }
 
 function renderEquipList() {
   const list = document.getElementById('equip-list');
-  const sorted = equipamentos.slice().sort();
+  const sorted = equipamentos.slice().sort((a,b) => a.codigo.localeCompare(b.codigo));
   if (!sorted.length) { list.innerHTML = '<div class="empty">Nenhum equipamento cadastrado.</div>'; return; }
   list.innerHTML = sorted.map(e => {
-    const inUse = records.some(r => r.equipamento === e && !r.data_retorno);
+    const inUse = records.some(r => r.equipamento === e.codigo && !r.data_retorno);
+    const stCalib = statusCalibracao(e.validade_calibracao);
+    const labelCalib = calibracaoLabel(e.validade_calibracao);
+    let calibBadge = '';
+    if (stCalib === 'vencido') calibBadge = `<span class="badge atraso" style="font-size:10px;">🔒 ${labelCalib}</span>`;
+    else if (stCalib === 'alerta') calibBadge = `<span class="badge em-uso" style="font-size:10px;">⚠️ ${labelCalib}</span>`;
+    else if (stCalib === 'ok') calibBadge = `<span class="badge devolvido" style="font-size:10px;">✓ ${labelCalib}</span>`;
+    else calibBadge = `<span style="font-size:11px;color:var(--gray-400);">Sem calibração</span>`;
+
     return `<div class="cad-item">
-      <span class="cad-item-name">${e}</span>
-      ${inUse ? '<span class="badge em-uso" style="font-size:10px;">Em uso</span>' : ''}
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span class="cad-item-name">${e.codigo}</span>
+          ${inUse ? '<span class="badge em-uso" style="font-size:10px;">Em uso</span>' : ''}
+        </div>
+        <div style="margin-top:4px;">${calibBadge}</div>
+      </div>
       <div class="cad-actions">
-        <button class="btn-icon edit" title="Editar" onclick="abrirEdicao('equip','${e.replace(/'/g,"\\'")}')">
+        <button class="btn-icon edit" title="Editar" onclick="abrirEdicao('equip','${e.codigo.replace(/'/g,"\\'")}')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
-        <button class="btn-icon del" title="Remover" onclick="removerEquipamento('${e.replace(/'/g,"\\'")}')">
+        <button class="btn-icon del" title="Remover" onclick="removerEquipamento('${e.codigo.replace(/'/g,"\\'")}')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
         </button>
       </div>
@@ -387,14 +516,16 @@ function renderFuncList() {
 async function addEquipamento() {
   const inp = document.getElementById('equip-input');
   const val = inp.value.trim().toUpperCase();
+  const validade = document.getElementById('equip-validade').value || null;
   if (!val) { inp.classList.add('error-field'); showToast('Digite o código do equipamento.', true); return; }
-  if (equipamentos.includes(val)) { showToast(`${val} já está cadastrado.`, true); return; }
+  if (equipamentos.find(e => e.codigo === val)) { showToast(`${val} já está cadastrado.`, true); return; }
   setLoading(true);
   try {
-    await sbPost('equipamentos', { codigo: val });
-    equipamentos.push(val);
+    await sbPost('equipamentos', { codigo: val, validade_calibracao: validade });
+    equipamentos.push({ codigo: val, validade_calibracao: validade });
     refreshFormSelects(); renderEquipList();
-    inp.value = ''; inp.classList.remove('error-field');
+    inp.value = ''; document.getElementById('equip-validade').value = '';
+    inp.classList.remove('error-field');
     showToast(`${val} adicionado com sucesso.`);
   } catch(e) { showToast('Erro ao adicionar equipamento.', true); console.error(e); }
   setLoading(false);
@@ -408,7 +539,7 @@ async function removerEquipamento(codigo) {
   setLoading(true);
   try {
     await sbDelete('equipamentos', `codigo=eq.${encodeURIComponent(codigo)}`);
-    equipamentos = equipamentos.filter(e => e !== codigo);
+    equipamentos = equipamentos.filter(e => e.codigo !== codigo);
     refreshFormSelects(); renderEquipList();
     showToast(`${codigo} removido.`);
   } catch(e) { showToast('Erro ao remover equipamento.', true); console.error(e); }
@@ -449,10 +580,23 @@ async function removerFuncionario(nome) {
 // ── Modal edição ───────────────────────────────────────────────────────────────
 function abrirEdicao(type, oldValue) {
   editContext = { type, oldValue };
-  document.getElementById('edit-title').textContent = type === 'equip' ? 'Editar equipamento' : 'Editar técnico';
-  document.getElementById('edit-label').textContent = type === 'equip' ? 'Código do equipamento' : 'Nome do técnico';
+  const isEquip = type === 'equip';
+  document.getElementById('edit-title').textContent = isEquip ? 'Editar equipamento' : 'Editar técnico';
+  document.getElementById('edit-label').textContent = isEquip ? 'Código do equipamento' : 'Nome do técnico';
+
   const inp = document.getElementById('edit-input');
   inp.value = oldValue; inp.classList.remove('error-field');
+
+  // Mostrar/ocultar campo de validade
+  const validadeRow = document.getElementById('edit-validade-row');
+  if (isEquip) {
+    validadeRow.style.display = 'flex';
+    const eq = equipamentos.find(e => e.codigo === oldValue);
+    document.getElementById('edit-validade').value = eq?.validade_calibracao || '';
+  } else {
+    validadeRow.style.display = 'none';
+  }
+
   document.getElementById('edit-overlay').classList.add('open');
   setTimeout(() => inp.focus(), 100);
 }
@@ -467,16 +611,18 @@ async function confirmarEdicao() {
   if (!newVal) { inp.classList.add('error-field'); showToast('O campo não pode ficar vazio.', true); return; }
   if (editContext.type === 'equip') newVal = newVal.toUpperCase();
   const { type, oldValue } = editContext;
+  const novaValidade = document.getElementById('edit-validade').value || null;
 
   setLoading(true);
   try {
     if (type === 'equip') {
-      if (equipamentos.includes(newVal) && newVal !== oldValue) { showToast(`${newVal} já existe.`, true); setLoading(false); return; }
-      await sbPatch('equipamentos', `codigo=eq.${encodeURIComponent(oldValue)}`, { codigo: newVal });
+      if (equipamentos.find(e => e.codigo === newVal) && newVal !== oldValue) { showToast(`${newVal} já existe.`, true); setLoading(false); return; }
+      await sbPatch('equipamentos', `codigo=eq.${encodeURIComponent(oldValue)}`, { codigo: newVal, validade_calibracao: novaValidade });
       await sbPatch('registros', `equipamento=eq.${encodeURIComponent(oldValue)}`, { equipamento: newVal });
-      equipamentos = equipamentos.map(e => e === oldValue ? newVal : e);
+      const eq = equipamentos.find(e => e.codigo === oldValue);
+      if (eq) { eq.codigo = newVal; eq.validade_calibracao = novaValidade; }
       records.forEach(r => { if (r.equipamento === oldValue) r.equipamento = newVal; });
-      refreshFormSelects(); renderEquipList();
+      refreshFormSelects(); renderEquipList(); renderDashboard();
     } else {
       if (tecnicos.some(t => t.toLowerCase() === newVal.toLowerCase() && t !== oldValue)) { showToast(`${newVal} já existe.`, true); setLoading(false); return; }
       await sbPatch('tecnicos', `nome=eq.${encodeURIComponent(oldValue)}`, { nome: newVal });
@@ -491,7 +637,7 @@ async function confirmarEdicao() {
   setLoading(false);
 }
 
-// ── Keyboard shortcuts ─────────────────────────────────────────────────────────
+// ── Keyboard ───────────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { fecharModal(); fecharEditModal(); }
 });
@@ -499,6 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('equip-input').addEventListener('keydown', e => { if (e.key === 'Enter') addEquipamento(); });
   document.getElementById('func-input').addEventListener('keydown', e => { if (e.key === 'Enter') addFuncionario(); });
   document.getElementById('edit-input').addEventListener('keydown', e => { if (e.key === 'Enter') confirmarEdicao(); });
+  pedirPermissaoNotificacao();
 });
 
 // ── Init ───────────────────────────────────────────────────────────────────────
