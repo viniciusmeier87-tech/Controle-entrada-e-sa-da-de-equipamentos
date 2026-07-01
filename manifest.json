@@ -1,6 +1,6 @@
 {
-  "name": "Controle de Equipamentos",
-  "short_name": "Equipamentos",
+  "name": "Éllu Ambiental - Controle de Equipamentos",
+  "short_name": "Éllu Equip.",
   "description": "Sistema de controle de entrada e saída de equipamentos de água",
   "start_url": "/",
   "display": "standalone",
