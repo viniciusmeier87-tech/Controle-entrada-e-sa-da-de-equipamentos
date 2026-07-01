@@ -53,6 +53,7 @@ body {
 .company-logo { height: 48px; width: auto; object-fit: contain; }
 h1 { font-size: 18px; font-weight: 600; color: var(--gray-900); line-height: 1.2; }
 .subtitle { font-size: 12px; color: var(--gray-500); }
+.sync-time { color: var(--green); font-weight: 500; }
 
 .tabs { display: flex; gap: 2px; background: var(--gray-100); border-radius: var(--radius); padding: 4px; border: 1px solid var(--gray-200); flex-wrap: wrap; }
 .tab { display: flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: transparent; color: var(--gray-500); transition: all 0.15s; white-space: nowrap; }
