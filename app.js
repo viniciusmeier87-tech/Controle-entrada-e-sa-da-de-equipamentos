@@ -30,9 +30,9 @@ async function sbDelete(table, query) {
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let records      = [];
-let equipamentos = []; // array de objetos { codigo, validade_calibracao }
-let tecnicos     = [];
+let records       = [];
+let equipamentos  = [];
+let tecnicos      = [];
 let modalRecordId = null;
 let editContext   = null;
 
@@ -43,31 +43,28 @@ function diasParaVencer(validade) {
   const val  = new Date(validade + 'T00:00:00');
   return Math.round((val - hoje) / 86400000);
 }
-
 function statusCalibracao(validade) {
-  const dias = diasParaVencer(validade);
-  if (dias === null) return null;
-  if (dias < 0)  return 'vencido';
-  if (dias <= 15) return 'alerta';
+  const d = diasParaVencer(validade);
+  if (d === null) return null;
+  if (d < 0) return 'vencido';
+  if (d <= 15) return 'alerta';
   return 'ok';
 }
-
 function calibracaoLabel(validade) {
-  const dias = diasParaVencer(validade);
-  if (dias === null) return null;
-  if (dias < 0)  return `Vencida há ${Math.abs(dias)} dia${Math.abs(dias) !== 1 ? 's' : ''}`;
-  if (dias === 0) return 'Vence hoje!';
-  if (dias <= 15) return `Vence em ${dias} dia${dias !== 1 ? 's' : ''}`;
+  const d = diasParaVencer(validade);
+  if (d === null) return null;
+  if (d < 0)  return `Vencida há ${Math.abs(d)} dia${Math.abs(d) !== 1 ? 's' : ''}`;
+  if (d === 0) return 'Vence hoje!';
+  if (d <= 15) return `Vence em ${d} dia${d !== 1 ? 's' : ''}`;
   return `Válida até ${formatDate(validade)}`;
 }
-
 function equipBloqueado(codigo) {
   const eq = equipamentos.find(e => e.codigo === codigo);
   if (!eq || !eq.validade_calibracao) return false;
   return diasParaVencer(eq.validade_calibracao) < 0;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers gerais ────────────────────────────────────────────────────────────
 function today() { return new Date().toISOString().split('T')[0]; }
 
 function formatDate(d) {
@@ -84,7 +81,7 @@ function diasEmUso(dataSaida, dataRetorno) {
 
 function getStatus(rec) {
   if (rec.data_retorno) return 'Devolvido';
-  if (diasEmUso(rec.data_saida) > 10) return 'Em atraso';
+  if (diasEmUso(rec.data_saida) > 5) return 'Em atraso';
   return 'Em uso';
 }
 
@@ -157,7 +154,7 @@ function setTab(tab) {
   if (tab === 'cadastro')  renderCadastros();
 }
 
-// ── Load all data ─────────────────────────────────────────────────────────────
+// ── Load all ──────────────────────────────────────────────────────────────────
 async function loadAll() {
   setLoading(true);
   try {
@@ -179,93 +176,97 @@ async function loadAll() {
   setLoading(false);
 }
 
-// ── Notificações de calibração ─────────────────────────────────────────────────
+// ── Notificações ──────────────────────────────────────────────────────────────
 function verificarNotificacoes() {
   const alertas = equipamentos.filter(e => {
     const st = statusCalibracao(e.validade_calibracao);
     return st === 'alerta' || st === 'vencido';
   });
-  if (!alertas.length) return;
-
+  const emAtraso = records.filter(r => !r.data_retorno && diasEmUso(r.data_saida) > 5);
+  const msgs = [];
   const vencidos = alertas.filter(e => statusCalibracao(e.validade_calibracao) === 'vencido');
   const proximos = alertas.filter(e => statusCalibracao(e.validade_calibracao) === 'alerta');
-
-  let msgs = [];
   if (vencidos.length) msgs.push(`${vencidos.length} equipamento(s) com calibração VENCIDA`);
-  if (proximos.length) msgs.push(`${proximos.length} equipamento(s) vencem em até 15 dias`);
-
-  // Notificação do sistema (se permitido)
-  if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification('⚠️ Calibração de Equipamentos', {
-      body: msgs.join('\n'),
-      icon: 'icon-192.png'
-    });
+  if (proximos.length) msgs.push(`${proximos.length} calibração(ões) vencem em até 15 dias`);
+  if (emAtraso.length) msgs.push(`${emAtraso.length} equipamento(s) com colaborador há mais de 5 dias`);
+  if ('Notification' in window && Notification.permission === 'granted' && msgs.length) {
+    new Notification('⚠️ Éllu Ambiental — Equipamentos', { body: msgs.join('\n'), icon: 'icon-192.png' });
   }
 }
 
 async function pedirPermissaoNotificacao() {
-  if (!('Notification' in window)) return;
-  if (Notification.permission === 'default') {
+  if ('Notification' in window && Notification.permission === 'default') {
     await Notification.requestPermission();
   }
 }
 
 // ── Dashboard ──────────────────────────────────────────────────────────────────
 function renderDashboard() {
-  const emUso      = records.filter(r => !r.data_retorno);
-  const devolvidos = records.filter(r => r.data_retorno);
-  const emAtraso   = emUso.filter(r => diasEmUso(r.data_saida) > 10);
+  const emUso       = records.filter(r => !r.data_retorno);
+  const devolvidos  = records.filter(r => r.data_retorno);
+  const emAtraso    = emUso.filter(r => diasEmUso(r.data_saida) > 5);
   const calibVencida = equipamentos.filter(e => statusCalibracao(e.validade_calibracao) === 'vencido');
   const calibAlerta  = equipamentos.filter(e => statusCalibracao(e.validade_calibracao) === 'alerta');
 
   document.getElementById('stats-cards').innerHTML = `
-    <div class="stat"><div class="stat-label">Total de registros</div><div class="stat-value">${records.length}</div></div>
+    <div class="stat"><div class="stat-label">Total registros</div><div class="stat-value">${records.length}</div></div>
     <div class="stat"><div class="stat-label">Em uso agora</div><div class="stat-value amber">${emUso.length}</div></div>
     <div class="stat"><div class="stat-label">Devolvidos</div><div class="stat-value green">${devolvidos.length}</div></div>
-    <div class="stat"><div class="stat-label">Em atraso (+10d)</div><div class="stat-value ${emAtraso.length > 0 ? 'red' : ''}">${emAtraso.length}</div></div>
+    <div class="stat"><div class="stat-label">Com técnico +5 dias</div><div class="stat-value ${emAtraso.length > 0 ? 'red' : ''}">${emAtraso.length}</div></div>
     <div class="stat"><div class="stat-label">Calibração vencida</div><div class="stat-value ${calibVencida.length > 0 ? 'red' : ''}">${calibVencida.length}</div></div>
     <div class="stat"><div class="stat-label">Calibração expirando</div><div class="stat-value ${calibAlerta.length > 0 ? 'amber' : ''}">${calibAlerta.length}</div></div>
   `;
 
-  // Alertas de calibração
+  // Alertas combinados
+  const alertasCalib = equipamentos.filter(e => ['vencido','alerta'].includes(statusCalibracao(e.validade_calibracao)));
+  const alertasDias  = emUso.filter(r => diasEmUso(r.data_saida) > 5);
   const alertaEl = document.getElementById('alerta-calibracao');
-  const alertasList = [...equipamentos]
-    .filter(e => statusCalibracao(e.validade_calibracao) === 'vencido' || statusCalibracao(e.validade_calibracao) === 'alerta')
-    .sort((a,b) => {
-      const da = diasParaVencer(a.validade_calibracao);
-      const db = diasParaVencer(b.validade_calibracao);
-      return da - db;
-    });
 
-  if (alertasList.length) {
+  if (alertasCalib.length || alertasDias.length) {
     alertaEl.style.display = 'block';
-    document.getElementById('alerta-list').innerHTML = alertasList.map(e => {
-      const st = statusCalibracao(e.validade_calibracao);
-      const label = calibracaoLabel(e.validade_calibracao);
-      return `<div class="alerta-item ${st}">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span class="chip">${e.codigo}</span>
-          <span style="font-size:13px;">${label}</span>
-        </div>
-        <span class="badge ${st === 'vencido' ? 'atraso' : 'em-uso'}">${st === 'vencido' ? '🔒 Bloqueado' : '⚠️ Atenção'}</span>
-      </div>`;
-    }).join('');
+    let html = '';
+
+    if (alertasDias.length) {
+      html += `<div class="alerta-section-title">⏱️ Equipamentos com técnico há mais de 5 dias</div>`;
+      html += alertasDias.sort((a,b) => diasEmUso(b.data_saida) - diasEmUso(a.data_saida)).map(r => {
+        const dias = diasEmUso(r.data_saida);
+        return `<div class="alerta-item atraso">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span class="chip chip-red">${r.equipamento}</span>
+            <span style="font-size:13px;">${r.tecnico} — ${r.projeto || 'sem projeto'}</span>
+          </div>
+          <span class="badge atraso">${dias} dias</span>
+        </div>`;
+      }).join('');
+    }
+
+    if (alertasCalib.length) {
+      html += `<div class="alerta-section-title" style="margin-top:${alertasDias.length ? '12px' : '0'}">🔧 Alertas de calibração</div>`;
+      html += alertasCalib.sort((a,b) => diasParaVencer(a.validade_calibracao) - diasParaVencer(b.validade_calibracao)).map(e => {
+        const st = statusCalibracao(e.validade_calibracao);
+        return `<div class="alerta-item ${st}">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="chip ${st === 'vencido' ? 'chip-red' : 'chip-amber'}">${e.codigo}</span>
+            <span style="font-size:13px;">${calibracaoLabel(e.validade_calibracao)}</span>
+          </div>
+          <span class="badge ${st === 'vencido' ? 'atraso' : 'em-uso'}">${st === 'vencido' ? '🔒 Bloqueado' : '⚠️ Atenção'}</span>
+        </div>`;
+      }).join('');
+    }
+    document.getElementById('alerta-list').innerHTML = html;
   } else {
     alertaEl.style.display = 'none';
   }
 
   // Em uso
   const list = document.getElementById('em-uso-list');
-  if (!emUso.length) {
-    list.innerHTML = '<div class="empty">Nenhum equipamento em uso no momento.</div>';
-    return;
-  }
+  if (!emUso.length) { list.innerHTML = '<div class="empty">Nenhum equipamento em uso no momento.</div>'; return; }
   list.innerHTML = emUso.map(r => {
     const dias = diasEmUso(r.data_saida);
     const st = getStatus(r);
     return `<div class="uso-item">
       <div class="uso-info">
-        <span class="chip">${r.equipamento}</span>
+        <span class="chip ${st === 'Em atraso' ? 'chip-red' : ''}">${r.equipamento}</span>
         <div>
           <div style="font-weight:600;font-size:13px;">${r.projeto || 'Sem projeto'}</div>
           <div class="uso-meta">Técnico: ${r.tecnico} · Saída: ${formatDate(r.data_saida)}</div>
@@ -287,41 +288,33 @@ async function registrarSaida() {
   const projeto = document.getElementById('s-projeto').value.trim();
 
   ['s-data','s-projeto'].forEach(id => document.getElementById(id).classList.remove('error-field'));
-
   let erros = [];
   if (!data)    { erros.push('Data de entrega'); document.getElementById('s-data').classList.add('error-field'); }
   if (!projeto) { erros.push('Projeto / local'); document.getElementById('s-projeto').classList.add('error-field'); }
-  if (erros.length) { showToast('Preencha os campos obrigatórios: ' + erros.join(', ') + '.', true); return; }
+  if (erros.length) { showToast('Preencha: ' + erros.join(', ') + '.', true); return; }
 
-  // Verificar bloqueio de calibração
   if (equipBloqueado(equip)) {
     const eq = equipamentos.find(e => e.codigo === equip);
-    showToast(`🔒 ${equip} está bloqueado: calibração vencida em ${formatDate(eq.validade_calibracao)}. Renove a calibração antes de liberar.`, true);
+    showToast(`🔒 ${equip} bloqueado: calibração vencida em ${formatDate(eq.validade_calibracao)}.`, true);
     return;
   }
-
   const emUso = records.find(r => r.equipamento === equip && !r.data_retorno);
-  if (emUso) { showToast(`${equip} já está em uso pelo técnico ${emUso.tecnico}.`, true); return; }
+  if (emUso) { showToast(`${equip} já está em uso por ${emUso.tecnico}.`, true); return; }
 
-  // Avisar se calibração prestes a vencer
   const eq = equipamentos.find(e => e.codigo === equip);
   if (eq && statusCalibracao(eq.validade_calibracao) === 'alerta') {
-    const ok = confirm(`⚠️ Atenção: ${equip} tem calibração expirando em breve (${calibracaoLabel(eq.validade_calibracao)}).\n\nDeseja registrar a saída mesmo assim?`);
-    if (!ok) return;
+    if (!confirm(`⚠️ ${equip}: calibração expira em breve (${calibracaoLabel(eq.validade_calibracao)}).\nDeseja registrar mesmo assim?`)) return;
   }
 
   setLoading(true);
   try {
-    const novo = { id: Date.now(), data_saida: data, data_retorno: null, equipamento: equip, tecnico, issak, projeto, ensaios: '' };
+    const novo = { id: Date.now(), data_saida: data, data_retorno: null, equipamento: equip, tecnico, issak, projeto, ensaios: '', checklist: null };
     const [saved] = await sbPost('registros', novo);
     records.unshift(saved);
     renderDashboard();
-    showToast(`Saída de ${equip} registrada com sucesso.`);
+    showToast(`Saída de ${equip} registrada.`);
     limparFormSaida();
-  } catch(e) {
-    showToast('Erro ao registrar saída. Tente novamente.', true);
-    console.error(e);
-  }
+  } catch(e) { showToast('Erro ao registrar saída.', true); console.error(e); }
   setLoading(false);
 }
 
@@ -348,29 +341,101 @@ function filtrarEmUso() {
     const st   = getStatus(r);
     return `<div class="dev-item">
       <div class="dev-info">
-        <div class="dev-title"><span class="chip" style="margin-right:8px">${r.equipamento}</span>${r.projeto || 'Sem projeto'}</div>
+        <div class="dev-title">
+          <span class="chip ${st === 'Em atraso' ? 'chip-red' : ''}" style="margin-right:8px">${r.equipamento}</span>
+          ${r.projeto || 'Sem projeto'}
+          ${st === 'Em atraso' ? `<span class="badge atraso" style="margin-left:6px;font-size:10px;">⏱️ ${dias} dias</span>` : ''}
+        </div>
         <div class="dev-meta">Técnico: ${r.tecnico} · Responsável: ${r.issak} · Saída: ${formatDate(r.data_saida)}</div>
       </div>
       <div class="dev-right">
-        <span class="badge ${badgeClass(st)}">${dias}d</span>
         <button class="btn danger devolver" onclick="abrirModalDevolucao(${r.id})">Devolver</button>
       </div>
     </div>`;
   }).join('');
 }
 
+// ── Modal devolução ────────────────────────────────────────────────────────────
+const MP_ENSAIOS = ['ph','orp','condutividade','od','temperatura'];
+const MP_ENSAIOS_LABELS = { ph:'pH', orp:'ORP', condutividade:'Condutividade', od:'OD', temperatura:'Temperatura' };
+
+function isMP(equipamento) {
+  return (equipamento || '').toUpperCase().startsWith('MP-');
+}
+
 function abrirModalDevolucao(id) {
   const rec = records.find(r => r.id === id);
   if (!rec) return;
   modalRecordId = id;
+
   document.getElementById('modal-equip-info').innerHTML = `
     <div class="modal-equip-name">${rec.equipamento}</div>
     <div class="modal-equip-meta">Projeto: ${rec.projeto || '—'} · Técnico: ${rec.tecnico} · Saída: ${formatDate(rec.data_saida)}</div>
   `;
-  const ta = document.getElementById('dev-ensaios');
-  ta.value = ''; ta.classList.remove('error-field');
+
+  // Reset checklist
+  ['limpo','funcionando','kit'].forEach(k => {
+    document.querySelector(`input[name="chk-${k}"][value="sim"]`).checked = false;
+    document.querySelector(`input[name="chk-${k}"][value="nao"]`).checked = false;
+    const just = document.getElementById(`just-${k}`);
+    just.value = ''; just.style.display = 'none';
+  });
+
+  // Mostrar seção de ensaios correta
+  const mp = isMP(rec.equipamento);
+  document.getElementById('ensaios-mp-section').style.display   = mp ? 'block' : 'none';
+  document.getElementById('ensaios-geral-section').style.display = mp ? 'none'  : 'none'; // outros não têm ensaios
+
+  // Reset ensaios MP
+  MP_ENSAIOS.forEach(e => {
+    const sim = document.querySelector(`input[name="mp-${e}"][value="sim"]`);
+    const nao = document.querySelector(`input[name="mp-${e}"][value="nao"]`);
+    if (sim) sim.checked = false;
+    if (nao) nao.checked = false;
+    const just = document.getElementById(`just-mp-${e}`);
+    if (just) { just.value = ''; just.style.display = 'none'; just.classList.remove('error-field'); }
+  });
+
+  // Reset ensaios geral
+  ['sim','nao'].forEach(v => {
+    const el = document.querySelector(`input[name="ensaios-flag"][value="${v}"]`);
+    if (el) el.checked = false;
+  });
+  const devEnsaios = document.getElementById('dev-ensaios');
+  const devJust    = document.getElementById('dev-ensaios-just');
+  if (devEnsaios) { devEnsaios.value = ''; devEnsaios.classList.remove('error-field'); }
+  if (devJust)    { devJust.value = '';    devJust.classList.remove('error-field'); }
+  const simArea = document.getElementById('ensaios-sim-area');
+  const naoArea = document.getElementById('ensaios-nao-area');
+  if (simArea) simArea.style.display = 'none';
+  if (naoArea) naoArea.style.display = 'none';
+
+  // Limpar erros
+  document.querySelectorAll('.modal-error').forEach(e => e.style.display = 'none');
+
   document.getElementById('modal-overlay').classList.add('open');
-  setTimeout(() => ta.focus(), 100);
+}
+
+function onChecklistChange(item, valor) {
+  const just = document.getElementById(`just-${item}`);
+  just.style.display = valor === 'nao' ? 'block' : 'none';
+  if (valor === 'sim') { just.value = ''; just.classList.remove('error-field'); }
+  document.getElementById(`err-${item}`).style.display = 'none';
+}
+
+function onMpEnsaio(ensaio, valor) {
+  const just = document.getElementById(`just-mp-${ensaio}`);
+  just.style.display = valor === 'nao' ? 'block' : 'none';
+  if (valor === 'sim') { just.value = ''; just.classList.remove('error-field'); }
+  document.getElementById(`err-mp-${ensaio}`).style.display = 'none';
+}
+
+function onEnsaiosFlag(valor) {
+  document.getElementById('ensaios-sim-area').style.display = valor === 'sim' ? 'block' : 'none';
+  document.getElementById('ensaios-nao-area').style.display = valor === 'nao' ? 'block' : 'none';
+  document.getElementById('dev-ensaios').value = '';
+  document.getElementById('dev-ensaios-just').value = '';
+  document.getElementById('err-ensaios').style.display = 'none';
 }
 
 function fecharModal() {
@@ -380,25 +445,80 @@ function fecharModal() {
 function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) fecharModal(); }
 
 async function confirmarDevolucao() {
-  const ensaios = document.getElementById('dev-ensaios').value.trim();
-  const ta = document.getElementById('dev-ensaios');
-  ta.classList.remove('error-field');
-  if (!ensaios) { ta.classList.add('error-field'); showToast('Descreva os ensaios replicados para confirmar a devolução.', true); ta.focus(); return; }
+  let valido = true;
+  const rec = records.find(r => r.id === modalRecordId);
+
+  // ── Checklist ──
+  const checkItems = [
+    { key: 'limpo', label: 'Equipamento Limpo' },
+    { key: 'funcionando', label: 'Funcionando' },
+    { key: 'kit', label: 'Kit Completo' }
+  ];
+  const checkResult = {};
+  for (const item of checkItems) {
+    const sel   = document.querySelector(`input[name="chk-${item.key}"]:checked`);
+    const errEl = document.getElementById(`err-${item.key}`);
+    if (!sel) { errEl.style.display = 'block'; valido = false; continue; }
+    errEl.style.display = 'none';
+    const just = document.getElementById(`just-${item.key}`).value.trim();
+    if (sel.value === 'nao' && !just) {
+      document.getElementById(`just-${item.key}`).classList.add('error-field'); valido = false;
+    } else {
+      document.getElementById(`just-${item.key}`).classList.remove('error-field');
+    }
+    checkResult[item.key] = { resposta: sel.value, justificativa: just };
+  }
+
+  // ── Ensaios ──
+  let ensaiosTexto = 'N/A';
+
+  if (isMP(rec.equipamento)) {
+    // MP: validar todos os 5 ensaios obrigatoriamente
+    const mpResult = {};
+    for (const e of MP_ENSAIOS) {
+      const sel   = document.querySelector(`input[name="mp-${e}"]:checked`);
+      const errEl = document.getElementById(`err-mp-${e}`);
+      if (!sel) { errEl.style.display = 'block'; valido = false; continue; }
+      errEl.style.display = 'none';
+      const just = document.getElementById(`just-mp-${e}`).value.trim();
+      if (sel.value === 'nao' && !just) {
+        document.getElementById(`just-mp-${e}`).classList.add('error-field'); valido = false;
+      } else {
+        document.getElementById(`just-mp-${e}`).classList.remove('error-field');
+      }
+      mpResult[e] = { resposta: sel.value, justificativa: just };
+    }
+    if (valido) {
+      ensaiosTexto = MP_ENSAIOS.map(e => {
+        const r = mpResult[e];
+        if (!r) return '';
+        const label = MP_ENSAIOS_LABELS[e];
+        return r.resposta === 'sim'
+          ? `${label}: ✓`
+          : `${label}: ✗ (${r.justificativa})`;
+      }).join(' | ');
+    }
+  }
+  // outros equipamentos: sem campo de ensaios, ensaiosTexto = 'N/A'
+
+  if (!valido) { showToast('Preencha todos os campos obrigatórios.', true); return; }
+
+  const checklistStr = JSON.stringify(checkResult);
 
   setLoading(true);
   try {
     const dataRetorno = today();
-    await sbPatch('registros', `id=eq.${modalRecordId}`, { data_retorno: dataRetorno, ensaios });
-    const rec = records.find(r => r.id === modalRecordId);
-    if (rec) { rec.data_retorno = dataRetorno; rec.ensaios = ensaios; }
+    await sbPatch('registros', `id=eq.${modalRecordId}`, {
+      data_retorno: dataRetorno,
+      ensaios: ensaiosTexto,
+      checklist: checklistStr
+    });
+    if (rec) { rec.data_retorno = dataRetorno; rec.ensaios = ensaiosTexto; rec.checklist = checklistStr; }
     fecharModal();
     renderDashboard();
     filtrarEmUso();
     showToast(`${rec?.equipamento} devolvido com sucesso.`);
-  } catch(e) {
-    showToast('Erro ao registrar devolução. Tente novamente.', true);
-    console.error(e);
-  }
+  } catch(e) { showToast('Erro ao registrar devolução.', true); console.error(e); }
   setLoading(false);
 }
 
@@ -418,11 +538,24 @@ function renderHistorico() {
   });
 
   const tbody = document.getElementById('hist-tbody');
-  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="10"><div class="empty">Nenhum registro encontrado.</div></td></tr>'; return; }
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="11"><div class="empty">Nenhum registro encontrado.</div></td></tr>'; return; }
 
   tbody.innerHTML = filtered.map(r => {
     const st   = getStatus(r);
     const dias = r.data_retorno ? diasEmUso(r.data_saida, r.data_retorno) : diasEmUso(r.data_saida);
+
+    // Checklist badge
+    let checkHtml = '—';
+    if (r.checklist) {
+      try {
+        const chk = JSON.parse(r.checklist);
+        const all = Object.values(chk).every(v => v.resposta === 'sim');
+        checkHtml = all
+          ? '<span class="badge devolvido">✓ OK</span>'
+          : '<span class="badge atraso">⚠ Pendências</span>';
+      } catch(e) {}
+    }
+
     return `<tr>
       <td><span class="chip">${r.equipamento}</span></td>
       <td>${r.projeto || '—'}</td>
@@ -431,6 +564,7 @@ function renderHistorico() {
       <td>${formatDate(r.data_saida)}</td>
       <td>${formatDate(r.data_retorno)}</td>
       <td>${dias}</td>
+      <td>${checkHtml}</td>
       <td class="ensaios-cell">${r.ensaios || '—'}</td>
       <td><span class="badge ${badgeClass(st)}">${st}</span></td>
       <td>${!r.data_retorno ? `<button class="btn danger devolver" onclick="abrirModalDevolucao(${r.id})">Devolver</button>` : ''}</td>
@@ -440,19 +574,25 @@ function renderHistorico() {
 
 // ── Export CSV ─────────────────────────────────────────────────────────────────
 function exportarCSV() {
-  const header = ['Equipamento','Projeto','Técnico','Responsável','Saída','Devolução','Dias em uso','Ensaios realizados','Status'];
+  const header = ['Equipamento','Projeto','Técnico','Responsável','Saída','Devolução','Dias','Checklist','Ensaios','Status'];
   const rows = records.map(r => {
     const dias = r.data_retorno ? diasEmUso(r.data_saida, r.data_retorno) : diasEmUso(r.data_saida);
-    return [r.equipamento, r.projeto||'', r.tecnico, r.issak||'', formatDate(r.data_saida), formatDate(r.data_retorno), dias, r.ensaios||'', getStatus(r)]
+    let chkResume = '';
+    if (r.checklist) {
+      try {
+        const chk = JSON.parse(r.checklist);
+        chkResume = Object.entries(chk).map(([k,v]) => `${k}:${v.resposta}${v.justificativa ? `(${v.justificativa})` : ''}`).join(' | ');
+      } catch(e) {}
+    }
+    return [r.equipamento, r.projeto||'', r.tecnico, r.issak||'', formatDate(r.data_saida), formatDate(r.data_retorno), dias, chkResume, r.ensaios||'', getStatus(r)]
       .map(v => `"${String(v).replace(/"/g,'""')}"`).join(',');
   });
   const csv  = [header.join(','), ...rows].join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = `equipamentos_${today()}.csv`; a.click();
+  const a    = document.createElement('a'); a.href = url; a.download = `equipamentos_${today()}.csv`; a.click();
   URL.revokeObjectURL(url);
-  showToast('CSV exportado com sucesso.');
+  showToast('CSV exportado.');
 }
 
 // ── Cadastros ──────────────────────────────────────────────────────────────────
@@ -463,15 +603,14 @@ function renderEquipList() {
   const sorted = equipamentos.slice().sort((a,b) => a.codigo.localeCompare(b.codigo));
   if (!sorted.length) { list.innerHTML = '<div class="empty">Nenhum equipamento cadastrado.</div>'; return; }
   list.innerHTML = sorted.map(e => {
-    const inUse = records.some(r => r.equipamento === e.codigo && !r.data_retorno);
+    const inUse  = records.some(r => r.equipamento === e.codigo && !r.data_retorno);
     const stCalib = statusCalibracao(e.validade_calibracao);
     const labelCalib = calibracaoLabel(e.validade_calibracao);
     let calibBadge = '';
     if (stCalib === 'vencido') calibBadge = `<span class="badge atraso" style="font-size:10px;">🔒 ${labelCalib}</span>`;
     else if (stCalib === 'alerta') calibBadge = `<span class="badge em-uso" style="font-size:10px;">⚠️ ${labelCalib}</span>`;
     else if (stCalib === 'ok') calibBadge = `<span class="badge devolvido" style="font-size:10px;">✓ ${labelCalib}</span>`;
-    else calibBadge = `<span style="font-size:11px;color:var(--gray-400);">Sem calibração</span>`;
-
+    else calibBadge = `<span style="font-size:11px;color:var(--gray-400);">Sem calibração registrada</span>`;
     return `<div class="cad-item">
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -518,85 +657,70 @@ async function addEquipamento() {
   const val = inp.value.trim().toUpperCase();
   const validade = document.getElementById('equip-validade').value || null;
   if (!val) { inp.classList.add('error-field'); showToast('Digite o código do equipamento.', true); return; }
-  if (equipamentos.find(e => e.codigo === val)) { showToast(`${val} já está cadastrado.`, true); return; }
+  if (equipamentos.find(e => e.codigo === val)) { showToast(`${val} já cadastrado.`, true); return; }
   setLoading(true);
   try {
     await sbPost('equipamentos', { codigo: val, validade_calibracao: validade });
     equipamentos.push({ codigo: val, validade_calibracao: validade });
     refreshFormSelects(); renderEquipList();
-    inp.value = ''; document.getElementById('equip-validade').value = '';
-    inp.classList.remove('error-field');
-    showToast(`${val} adicionado com sucesso.`);
-  } catch(e) { showToast('Erro ao adicionar equipamento.', true); console.error(e); }
+    inp.value = ''; document.getElementById('equip-validade').value = ''; inp.classList.remove('error-field');
+    showToast(`${val} adicionado.`);
+  } catch(e) { showToast('Erro ao adicionar.', true); console.error(e); }
   setLoading(false);
 }
 
 async function removerEquipamento(codigo) {
-  if (records.some(r => r.equipamento === codigo && !r.data_retorno)) {
-    showToast(`Não é possível remover ${codigo}: equipamento em uso.`, true); return;
-  }
-  if (!confirm(`Remover "${codigo}" do cadastro?`)) return;
+  if (records.some(r => r.equipamento === codigo && !r.data_retorno)) { showToast(`${codigo} em uso, não pode remover.`, true); return; }
+  if (!confirm(`Remover "${codigo}"?`)) return;
   setLoading(true);
   try {
     await sbDelete('equipamentos', `codigo=eq.${encodeURIComponent(codigo)}`);
     equipamentos = equipamentos.filter(e => e.codigo !== codigo);
-    refreshFormSelects(); renderEquipList();
-    showToast(`${codigo} removido.`);
-  } catch(e) { showToast('Erro ao remover equipamento.', true); console.error(e); }
+    refreshFormSelects(); renderEquipList(); showToast(`${codigo} removido.`);
+  } catch(e) { showToast('Erro ao remover.', true); console.error(e); }
   setLoading(false);
 }
 
 async function addFuncionario() {
   const inp = document.getElementById('func-input');
   const val = inp.value.trim();
-  if (!val) { inp.classList.add('error-field'); showToast('Digite o nome do técnico.', true); return; }
-  if (tecnicos.some(t => t.toLowerCase() === val.toLowerCase())) { showToast(`${val} já está cadastrado.`, true); return; }
+  if (!val) { inp.classList.add('error-field'); showToast('Digite o nome.', true); return; }
+  if (tecnicos.some(t => t.toLowerCase() === val.toLowerCase())) { showToast(`${val} já cadastrado.`, true); return; }
   setLoading(true);
   try {
     await sbPost('tecnicos', { nome: val });
-    tecnicos.push(val);
-    refreshFormSelects(); renderFuncList();
-    inp.value = ''; inp.classList.remove('error-field');
-    showToast(`${val} adicionado com sucesso.`);
-  } catch(e) { showToast('Erro ao adicionar técnico.', true); console.error(e); }
+    tecnicos.push(val); refreshFormSelects(); renderFuncList();
+    inp.value = ''; inp.classList.remove('error-field'); showToast(`${val} adicionado.`);
+  } catch(e) { showToast('Erro ao adicionar.', true); console.error(e); }
   setLoading(false);
 }
 
 async function removerFuncionario(nome) {
-  if (records.some(r => r.tecnico === nome && !r.data_retorno)) {
-    showToast(`Não é possível remover ${nome}: técnico com equipamento em uso.`, true); return;
-  }
-  if (!confirm(`Remover "${nome}" do cadastro?`)) return;
+  if (records.some(r => r.tecnico === nome && !r.data_retorno)) { showToast(`${nome} tem equipamento em uso.`, true); return; }
+  if (!confirm(`Remover "${nome}"?`)) return;
   setLoading(true);
   try {
     await sbDelete('tecnicos', `nome=eq.${encodeURIComponent(nome)}`);
-    tecnicos = tecnicos.filter(t => t !== nome);
-    refreshFormSelects(); renderFuncList();
-    showToast(`${nome} removido.`);
-  } catch(e) { showToast('Erro ao remover técnico.', true); console.error(e); }
+    tecnicos = tecnicos.filter(t => t !== nome); refreshFormSelects(); renderFuncList(); showToast(`${nome} removido.`);
+  } catch(e) { showToast('Erro ao remover.', true); console.error(e); }
   setLoading(false);
 }
 
 // ── Modal edição ───────────────────────────────────────────────────────────────
 function abrirEdicao(type, oldValue) {
   editContext = { type, oldValue };
-  const isEquip = type === 'equip';
-  document.getElementById('edit-title').textContent = isEquip ? 'Editar equipamento' : 'Editar técnico';
-  document.getElementById('edit-label').textContent = isEquip ? 'Código do equipamento' : 'Nome do técnico';
-
+  document.getElementById('edit-title').textContent = type === 'equip' ? 'Editar equipamento' : 'Editar técnico';
+  document.getElementById('edit-label').textContent = type === 'equip' ? 'Código do equipamento' : 'Nome do técnico';
   const inp = document.getElementById('edit-input');
   inp.value = oldValue; inp.classList.remove('error-field');
-
-  // Mostrar/ocultar campo de validade
   const validadeRow = document.getElementById('edit-validade-row');
-  if (isEquip) {
+  if (type === 'equip') {
     validadeRow.style.display = 'flex';
     const eq = equipamentos.find(e => e.codigo === oldValue);
     document.getElementById('edit-validade').value = eq?.validade_calibracao || '';
   } else {
     validadeRow.style.display = 'none';
   }
-
   document.getElementById('edit-overlay').classList.add('open');
   setTimeout(() => inp.focus(), 100);
 }
@@ -608,11 +732,10 @@ async function confirmarEdicao() {
   if (!editContext) return;
   const inp = document.getElementById('edit-input');
   let newVal = inp.value.trim();
-  if (!newVal) { inp.classList.add('error-field'); showToast('O campo não pode ficar vazio.', true); return; }
+  if (!newVal) { inp.classList.add('error-field'); showToast('Campo não pode ser vazio.', true); return; }
   if (editContext.type === 'equip') newVal = newVal.toUpperCase();
   const { type, oldValue } = editContext;
   const novaValidade = document.getElementById('edit-validade').value || null;
-
   setLoading(true);
   try {
     if (type === 'equip') {
@@ -631,9 +754,8 @@ async function confirmarEdicao() {
       records.forEach(r => { if (r.tecnico === oldValue) r.tecnico = newVal; });
       refreshFormSelects(); renderFuncList();
     }
-    fecharEditModal();
-    showToast('Cadastro atualizado com sucesso.');
-  } catch(e) { showToast('Erro ao atualizar. Tente novamente.', true); console.error(e); }
+    fecharEditModal(); showToast('Atualizado com sucesso.');
+  } catch(e) { showToast('Erro ao atualizar.', true); console.error(e); }
   setLoading(false);
 }
 
